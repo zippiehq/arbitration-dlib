@@ -288,7 +288,7 @@ pub struct Access {
 
 fn to_bytes(input: Vec<u8>) -> Option<[u8; 8]> {
     if input.len() != 8 {
-        None
+        Some([0, 0, 0, 0, 0, 0, 0, 0])
     } else {
         Some([
             input[0], input[1], input[2], input[3], input[4], input[5], input[6], input[7],
@@ -300,26 +300,21 @@ fn from_bytes(input: [u8; 8]) -> Vec<u8> {
     vec![input[0], input[1], input[2], input[3], input[4], input[5], input[6], input[7],]
 }
 
-impl From<cartesi_machine::WordAccess> for Access {
-    fn from(access: cartesi_machine::WordAccess) -> Self {
+impl From<cartesi_machine::Access> for Access {
+    fn from(access: cartesi_machine::Access) -> Self {
         let proof: Proof = access.proof.into_option().expect("proof not found").into();
+        trace!("READ {:?} , WRITTEN {:?}", access.read, access.written);
         Access {
             field_type: access.field_type.into(),
             address: proof.address,
             value_read: to_bytes(
                 access
                     .read
-                    .into_option()
-                    .expect("read access not found")
-                    .data,
             )
             .expect("read value has the wrong size"),
             value_written: to_bytes(
                 access
                     .written
-                    .into_option()
-                    .expect("write access not found")
-                    .data,
             )
             .expect("write value has the wrong size"),
             proof: proof,
@@ -327,18 +322,13 @@ impl From<cartesi_machine::WordAccess> for Access {
     }
 }
 
-impl From<Access> for cartesi_machine::WordAccess {
+impl From<Access> for cartesi_machine::Access {
     fn from(access: Access) -> Self {
-        let mut a = cartesi_machine::WordAccess::new();
+        let mut a = cartesi_machine::Access::new();
         a.field_type = access.field_type.into();
         
-        let mut read_word = cartesi_machine::Word::new();
-        read_word.data = from_bytes(access.value_read);
-        a.read = protobuf::SingularPtrField::some(read_word);
-
-        let mut written_word = cartesi_machine::Word::new();
-        written_word.data = from_bytes(access.value_written);
-        a.written = protobuf::SingularPtrField::some(written_word);
+        a.read = from_bytes(access.value_read);
+        a.written = from_bytes(access.value_written);
 
         a.proof = protobuf::SingularPtrField::some(access.proof.into());
         return a;
